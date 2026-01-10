@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import LiveMonitoring from "@/pages/LiveMonitoring";
+import VLMMonitoring from "@/pages/VLMMonitoring";
 import EventsIncidents from "@/pages/EventsIncidents";
 import EventDetail from "@/pages/EventDetail";
 import PredictiveAlerts from "@/pages/PredictiveAlerts";
@@ -25,6 +26,7 @@ const App = () => (
         <DashboardLayout>
           <Routes>
             <Route path="/" element={<LiveMonitoring />} />
+            <Route path="/vlm" element={<VLMMonitoring />} />
             <Route path="/events" element={<EventsIncidents />} />
             <Route path="/events/:id" element={<EventDetail />} />
             <Route path="/predictive" element={<PredictiveAlerts />} />
