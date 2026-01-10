@@ -3,6 +3,7 @@ import {
   Monitor,
   AlertTriangle,
   Brain,
+  Scan,
   Map,
   FileText,
   BarChart3,
@@ -22,6 +23,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { icon: Monitor, label: "Live Monitoring", href: "/" },
+  { icon: Scan, label: "VLM Analysis", href: "/vlm" },
   { icon: AlertTriangle, label: "Events & Incidents", href: "/events" },
   { icon: Brain, label: "Predictive Alerts", href: "/predictive" },
   { icon: Map, label: "Camera & Zone Map", href: "/map" },
