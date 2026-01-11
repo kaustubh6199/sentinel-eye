@@ -13,6 +13,7 @@ import CameraMap from "@/pages/CameraMap";
 import AuditLogs from "@/pages/AuditLogs";
 import Reports from "@/pages/Reports";
 import Settings from "@/pages/Settings";
+import Documentation from "@/pages/Documentation";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +34,7 @@ const App = () => (
             <Route path="/map" element={<CameraMap />} />
             <Route path="/audit" element={<AuditLogs />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/docs" element={<Documentation />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

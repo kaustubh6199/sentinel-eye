@@ -7,6 +7,7 @@ import {
   Map,
   FileText,
   BarChart3,
+  Book,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -29,6 +30,7 @@ const navItems: NavItem[] = [
   { icon: Map, label: "Camera & Zone Map", href: "/map" },
   { icon: FileText, label: "Audit Logs", href: "/audit" },
   { icon: BarChart3, label: "Reports & Exports", href: "/reports" },
+  { icon: Book, label: "Documentation", href: "/docs" },
   { icon: Settings, label: "System Settings", href: "/settings", restricted: true },
 ];
 
