@@ -1,1 +1,4 @@
 project_id = "pufsgwrielakvpugnhuj"
+
+[functions.vlm-analysis]
+verify_jwt = false
