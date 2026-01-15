@@ -1,21 +1,26 @@
-import { Shield, Activity, User, Clock } from "lucide-react";
+import { Shield, Activity, User, Clock, LogOut, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { InviteUserDialog } from "@/components/admin/InviteUserDialog";
+import { useToast } from "@/hooks/use-toast";
 
 type SystemHealth = "healthy" | "warning" | "critical";
-type UserRole = "Operator" | "Supervisor" | "Admin";
 
-interface GlobalHeaderProps {
-  systemHealth?: SystemHealth;
-  userRole?: UserRole;
-  userName?: string;
-}
-
-export function GlobalHeader({
-  systemHealth = "healthy",
-  userRole = "Operator",
-  userName = "R. Sharma",
-}: GlobalHeaderProps) {
+export function GlobalHeader() {
   const [currentTime, setCurrentTime] = useState(new Date());
+  const { user, role, isAdmin, signOut } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -40,6 +45,7 @@ export function GlobalHeader({
     });
   };
 
+  const systemHealth: SystemHealth = "healthy";
   const healthConfig = {
     healthy: {
       color: "bg-status-healthy",
@@ -56,6 +62,26 @@ export function GlobalHeader({
   };
 
   const health = healthConfig[systemHealth];
+
+  const handleSignOut = async () => {
+    const { error } = await signOut();
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign out. Please try again.",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Signed Out",
+        description: "You have been signed out successfully.",
+      });
+      navigate("/auth");
+    }
+  };
+
+  const userName = user?.email?.split("@")[0] || "User";
+  const displayRole = role ? role.charAt(0).toUpperCase() + role.slice(1) : "User";
 
   return (
     <header className="h-14 bg-card border-b border-border flex items-center justify-between px-6">
@@ -93,6 +119,18 @@ export function GlobalHeader({
 
       {/* Right: Date, Time, User */}
       <div className="flex items-center gap-6">
+        {/* Admin: Invite User Button */}
+        {isAdmin && (
+          <InviteUserDialog
+            trigger={
+              <Button variant="outline" size="sm" className="gap-2">
+                <UserPlus className="w-4 h-4" />
+                Invite User
+              </Button>
+            }
+          />
+        )}
+
         {/* Date & Time */}
         <div className="flex items-center gap-3 text-right">
           <Clock className="w-4 h-4 text-muted-foreground" />
@@ -108,16 +146,33 @@ export function GlobalHeader({
 
         <div className="w-px h-8 bg-border" />
 
-        {/* User Info */}
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <p className="text-xs font-medium text-foreground">{userName}</p>
-            <p className="text-2xs text-muted-foreground">{userRole}</p>
-          </div>
-          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-            <User className="w-4 h-4 text-muted-foreground" />
-          </div>
-        </div>
+        {/* User Info with Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+              <div className="text-right">
+                <p className="text-xs font-medium text-foreground">{userName}</p>
+                <p className="text-2xs text-muted-foreground">{displayRole}</p>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
+                <User className="w-4 h-4 text-muted-foreground" />
+              </div>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel>
+              <div>
+                <p className="font-medium">{user?.email}</p>
+                <p className="text-xs text-muted-foreground capitalize">{role || "User"}</p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

@@ -2,3 +2,12 @@ project_id = "pufsgwrielakvpugnhuj"
 
 [functions.vlm-analysis]
 verify_jwt = false
+
+[functions.send-invitation]
+verify_jwt = false
+
+[functions.verify-otp]
+verify_jwt = false
+
+[functions.resend-otp]
+verify_jwt = false
