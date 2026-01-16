@@ -9,17 +9,20 @@ import {
   BarChart3,
   Book,
   Settings,
+  Users,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface NavItem {
   icon: React.ElementType;
   label: string;
   href: string;
   restricted?: boolean;
+  adminOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -31,12 +34,19 @@ const navItems: NavItem[] = [
   { icon: FileText, label: "Audit Logs", href: "/audit" },
   { icon: BarChart3, label: "Reports & Exports", href: "/reports" },
   { icon: Book, label: "Documentation", href: "/docs" },
+  { icon: Users, label: "User Management", href: "/users", adminOnly: true },
   { icon: Settings, label: "System Settings", href: "/settings", restricted: true },
 ];
 
 export function NavigationSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { role } = useAuth();
+
+  // Filter nav items based on user role
+  const filteredNavItems = navItems.filter(
+    (item) => !item.adminOnly || role === "admin"
+  );
 
   return (
     <aside
@@ -47,7 +57,7 @@ export function NavigationSidebar() {
     >
       {/* Navigation Items */}
       <nav className="flex-1 py-4 px-2 space-y-1">
-        {navItems.map((item) => {
+        {filteredNavItems.map((item) => {
           const isActive = location.pathname === item.href;
           const Icon = item.icon;
 
