@@ -15,6 +15,7 @@ import AuditLogs from "@/pages/AuditLogs";
 import Reports from "@/pages/Reports";
 import Settings from "@/pages/Settings";
 import Documentation from "@/pages/Documentation";
+import UserManagement from "@/pages/UserManagement";
 import NotFound from "@/pages/NotFound";
 import Auth from "@/pages/Auth";
 
@@ -43,6 +44,7 @@ const App = () => (
                     <Route path="/audit" element={<AuditLogs />} />
                     <Route path="/reports" element={<Reports />} />
                     <Route path="/docs" element={<Documentation />} />
+                    <Route path="/users" element={<UserManagement />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
