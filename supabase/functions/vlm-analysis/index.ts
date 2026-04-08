@@ -11,6 +11,15 @@ interface DetectedObject {
   boundingBox?: { x: number; y: number; width: number; height: number };
 }
 
+interface ObjectSearchResult {
+  objectLabel: string;
+  found: boolean;
+  confidence: number;
+  location?: string;
+  details: string;
+  boundingBox?: { x: number; y: number; width: number; height: number };
+}
+
 interface ThreatAssessment {
   cameraId: string;
   timestamp: string;
@@ -24,9 +33,10 @@ interface ThreatAssessment {
   anomalies: string[];
   behaviorAnalysis: string;
   recommendations: string[];
+  objectSearchResults?: ObjectSearchResult[];
 }
 
-const systemPrompt = `You are an advanced Vision Language Model (VLM) security analyst for a Security Operations Center (SOC). Your role is to analyze camera feed images and provide comprehensive threat assessments.
+const baseSystemPrompt = `You are an advanced Vision Language Model (VLM) security analyst for a Security Operations Center (SOC). Your role is to analyze camera feed images and provide comprehensive threat assessments.
 
 When analyzing an image, you must provide:
 1. A detailed scene description
@@ -48,7 +58,6 @@ Focus on security-relevant observations:
 Be precise, professional, and err on the side of caution for security matters.`;
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -56,7 +65,7 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { cameraId, imageBase64, imageUrl } = await req.json();
+    const { cameraId, imageBase64, imageUrl, customPrompt, objectsOfInterest } = await req.json();
 
     if (!cameraId) {
       return new Response(
@@ -81,14 +90,93 @@ serve(async (req) => {
       );
     }
 
-    // Build the image content for the API
+    // Build enhanced system prompt
+    let systemPrompt = baseSystemPrompt;
+
+    if (objectsOfInterest && objectsOfInterest.length > 0) {
+      systemPrompt += `\n\nIMPORTANT - OBJECTS OF INTEREST SEARCH:
+You must specifically look for and report on these objects/items of interest in the scene:
+${objectsOfInterest.map((obj: string, i: number) => `${i + 1}. ${obj}`).join("\n")}
+
+For each object of interest, determine:
+- Whether it is found in the scene (true/false)
+- Confidence level (0-100)
+- Approximate location in the frame
+- Detailed description of the finding`;
+    }
+
+    if (customPrompt) {
+      systemPrompt += `\n\nADDITIONAL ANALYSIS INSTRUCTIONS FROM OPERATOR:
+${customPrompt}`;
+    }
+
     const imageContent = imageBase64
       ? { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
       : { type: "image_url", image_url: { url: imageUrl } };
 
-    const userMessage = `Analyze this security camera feed from camera ${cameraId}. Provide a comprehensive threat assessment.`;
+    let userMessage = `Analyze this security camera feed from camera ${cameraId}. Provide a comprehensive threat assessment.`;
 
-    console.log(`Processing VLM analysis for camera: ${cameraId}`);
+    if (customPrompt) {
+      userMessage += `\n\nOperator query: ${customPrompt}`;
+    }
+
+    if (objectsOfInterest && objectsOfInterest.length > 0) {
+      userMessage += `\n\nSpecifically search for these objects of interest: ${objectsOfInterest.join(", ")}`;
+    }
+
+    console.log(`Processing VLM analysis for camera: ${cameraId}, custom prompt: ${!!customPrompt}, objects of interest: ${objectsOfInterest?.length || 0}`);
+
+    // Build tool parameters - add objectSearchResults if objects of interest provided
+    const toolProperties: Record<string, any> = {
+      sceneDescription: { type: "string", description: "Detailed description of the scene" },
+      detectedObjects: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            label: { type: "string" },
+            confidence: { type: "number" },
+            boundingBox: {
+              type: "object",
+              properties: { x: { type: "number" }, y: { type: "number" }, width: { type: "number" }, height: { type: "number" } }
+            }
+          },
+          required: ["label", "confidence"]
+        },
+        description: "List of all detected objects in the scene"
+      },
+      riskLevel: { type: "string", enum: ["low", "medium", "high", "critical"] },
+      riskScore: { type: "number", description: "Risk score 0-100" },
+      riskReasoning: { type: "string" },
+      anomalies: { type: "array", items: { type: "string" } },
+      behaviorAnalysis: { type: "string" },
+      recommendations: { type: "array", items: { type: "string" } },
+    };
+
+    const requiredFields = ["sceneDescription", "detectedObjects", "riskLevel", "riskScore", "riskReasoning", "anomalies", "behaviorAnalysis", "recommendations"];
+
+    if (objectsOfInterest && objectsOfInterest.length > 0) {
+      toolProperties.objectSearchResults = {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            objectLabel: { type: "string", description: "The object being searched for" },
+            found: { type: "boolean", description: "Whether the object was found" },
+            confidence: { type: "number", description: "Confidence 0-100" },
+            location: { type: "string", description: "Where in the frame the object was found" },
+            details: { type: "string", description: "Detailed description of the finding" },
+            boundingBox: {
+              type: "object",
+              properties: { x: { type: "number" }, y: { type: "number" }, width: { type: "number" }, height: { type: "number" } }
+            }
+          },
+          required: ["objectLabel", "found", "confidence", "details"]
+        },
+        description: "Results for each object of interest searched"
+      };
+      requiredFields.push("objectSearchResults");
+    }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -100,89 +188,26 @@ serve(async (req) => {
         model: "google/gemini-2.5-pro",
         messages: [
           { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: userMessage },
-              imageContent,
-            ],
-          },
+          { role: "user", content: [{ type: "text", text: userMessage }, imageContent] },
         ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "submit_threat_assessment",
-              description: "Submit a structured threat assessment for the analyzed camera feed",
-              parameters: {
-                type: "object",
-                properties: {
-                  sceneDescription: {
-                    type: "string",
-                    description: "Detailed description of the scene"
-                  },
-                  detectedObjects: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        label: { type: "string", description: "Object label/type" },
-                        confidence: { type: "number", description: "Confidence score 0-100" },
-                        boundingBox: {
-                          type: "object",
-                          properties: {
-                            x: { type: "number" },
-                            y: { type: "number" },
-                            width: { type: "number" },
-                            height: { type: "number" }
-                          }
-                        }
-                      },
-                      required: ["label", "confidence"]
-                    },
-                    description: "List of detected objects"
-                  },
-                  riskLevel: {
-                    type: "string",
-                    enum: ["low", "medium", "high", "critical"],
-                    description: "Overall risk level"
-                  },
-                  riskScore: {
-                    type: "number",
-                    description: "Risk score from 0-100"
-                  },
-                  riskReasoning: {
-                    type: "string",
-                    description: "Explanation for the risk assessment"
-                  },
-                  anomalies: {
-                    type: "array",
-                    items: { type: "string" },
-                    description: "List of detected anomalies or suspicious activities"
-                  },
-                  behaviorAnalysis: {
-                    type: "string",
-                    description: "Analysis of behavioral patterns observed"
-                  },
-                  recommendations: {
-                    type: "array",
-                    items: { type: "string" },
-                    description: "Security recommendations based on analysis"
-                  }
-                },
-                required: ["sceneDescription", "detectedObjects", "riskLevel", "riskScore", "riskReasoning", "anomalies", "behaviorAnalysis", "recommendations"],
-                additionalProperties: false
-              }
+        tools: [{
+          type: "function",
+          function: {
+            name: "submit_threat_assessment",
+            description: "Submit a structured threat assessment for the analyzed camera feed",
+            parameters: {
+              type: "object",
+              properties: toolProperties,
+              required: requiredFields,
+              additionalProperties: false
             }
           }
-        ],
+        }],
         tool_choice: { type: "function", function: { name: "submit_threat_assessment" } }
       }),
     });
 
-    // Handle rate limiting and payment errors
     if (response.status === 429) {
-      console.error("Rate limit exceeded");
       return new Response(
         JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
         { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -190,7 +215,6 @@ serve(async (req) => {
     }
 
     if (response.status === 402) {
-      console.error("Payment required");
       return new Response(
         JSON.stringify({ error: "AI credits exhausted. Please add funds to continue." }),
         { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -207,12 +231,8 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log("VLM response received:", JSON.stringify(data).slice(0, 500));
-
-    // Extract the tool call result
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall || toolCall.function.name !== "submit_threat_assessment") {
-      console.error("Invalid tool call response");
       return new Response(
         JSON.stringify({ error: "Invalid AI response format" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -222,7 +242,6 @@ serve(async (req) => {
     const analysisResult = JSON.parse(toolCall.function.arguments);
     const processingTimeMs = Date.now() - startTime;
 
-    // Build the complete threat assessment
     const threatAssessment: ThreatAssessment = {
       cameraId,
       timestamp: new Date().toISOString(),
@@ -236,9 +255,10 @@ serve(async (req) => {
       anomalies: analysisResult.anomalies,
       behaviorAnalysis: analysisResult.behaviorAnalysis,
       recommendations: analysisResult.recommendations,
+      objectSearchResults: analysisResult.objectSearchResults,
     };
 
-    console.log(`VLM analysis complete for ${cameraId}: Risk ${threatAssessment.riskLevel} (${threatAssessment.riskScore}), processed in ${processingTimeMs}ms`);
+    console.log(`VLM analysis complete for ${cameraId}: Risk ${threatAssessment.riskLevel} (${threatAssessment.riskScore}), objects found: ${threatAssessment.objectSearchResults?.filter(r => r.found).length || 0}, processed in ${processingTimeMs}ms`);
 
     return new Response(JSON.stringify(threatAssessment), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
