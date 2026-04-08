@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { VLMPanel } from "@/components/monitoring/VLMPanel";
+import { PromptSearchPanel } from "@/components/monitoring/PromptSearchPanel";
+import { useVLMAnalysis } from "@/hooks/useVLMAnalysis";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -9,16 +11,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Video, 
   Maximize2,
-  Grid3X3,
   LayoutPanelLeft,
   Pause,
   Play,
-  Camera
+  Camera,
+  Brain,
+  Search,
+  Grid3X3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ObjectSearchResult } from "@/types/vlm";
 
 const cameras = [
   { id: "CAM-001", location: "Main Entrance Gate A", status: "alert" },
@@ -29,10 +35,21 @@ const cameras = [
 
 export default function VLMMonitoring() {
   const [selectedCamera, setSelectedCamera] = useState("CAM-001");
-  const [isAnalyzing, setIsAnalyzing] = useState(true);
+  const [isLiveAnalyzing, setIsLiveAnalyzing] = useState(true);
   const [layout, setLayout] = useState<"split" | "focus">("split");
+  const [rightTab, setRightTab] = useState<"analysis" | "search">("analysis");
+  const { isAnalyzing, latestAnalysis, analyzeCamera } = useVLMAnalysis();
 
   const currentCamera = cameras.find((c) => c.id === selectedCamera);
+
+  const handlePromptAnalyze = (prompt: string, objectsOfInterest: string[]) => {
+    analyzeCamera({
+      cameraId: selectedCamera,
+      imageUrl: "https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800",
+      customPrompt: prompt || undefined,
+      objectsOfInterest: objectsOfInterest.length > 0 ? objectsOfInterest : undefined,
+    });
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -47,17 +64,17 @@ export default function VLMMonitoring() {
               </Badge>
             </h2>
             <p className="text-sm text-muted-foreground">
-              Real-time AI scene understanding with human-in-the-loop validation
+              Real-time AI scene understanding with prompt-based object search
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button
-              variant={isAnalyzing ? "default" : "outline"}
+              variant={isLiveAnalyzing ? "default" : "outline"}
               size="sm"
-              onClick={() => setIsAnalyzing(!isAnalyzing)}
+              onClick={() => setIsLiveAnalyzing(!isLiveAnalyzing)}
               className="gap-2"
             >
-              {isAnalyzing ? (
+              {isLiveAnalyzing ? (
                 <>
                   <Pause className="w-4 h-4" />
                   Pause Analysis
@@ -127,7 +144,7 @@ export default function VLMMonitoring() {
             </button>
           </div>
 
-          {isAnalyzing && (
+          {isLiveAnalyzing && (
             <div className="flex items-center gap-2 ml-auto">
               <div className="w-2 h-2 rounded-full bg-status-healthy animate-pulse" />
               <span className="text-xs text-muted-foreground">
@@ -182,7 +199,6 @@ export default function VLMMonitoring() {
 
               {/* Mock Detection Boxes */}
               <div className="absolute inset-0 pointer-events-none">
-                {/* Person A */}
                 <div
                   className="absolute border-2 border-status-warning rounded"
                   style={{ left: "25%", top: "30%", width: "15%", height: "45%" }}
@@ -192,7 +208,6 @@ export default function VLMMonitoring() {
                   </div>
                 </div>
 
-                {/* Person B */}
                 <div
                   className="absolute border-2 border-status-healthy rounded"
                   style={{ left: "60%", top: "35%", width: "12%", height: "40%" }}
@@ -202,7 +217,6 @@ export default function VLMMonitoring() {
                   </div>
                 </div>
 
-                {/* Object */}
                 <div
                   className="absolute border-2 border-primary/60 rounded"
                   style={{ left: "30%", top: "55%", width: "8%", height: "15%" }}
@@ -211,6 +225,24 @@ export default function VLMMonitoring() {
                     Backpack • 72%
                   </div>
                 </div>
+
+                {/* Show search result highlights */}
+                {latestAnalysis?.objectSearchResults?.filter(r => r.found && r.boundingBox).map((result, i) => (
+                  <div
+                    key={i}
+                    className="absolute border-2 border-status-critical rounded animate-pulse"
+                    style={{
+                      left: `${result.boundingBox!.x}%`,
+                      top: `${result.boundingBox!.y}%`,
+                      width: `${result.boundingBox!.width}%`,
+                      height: `${result.boundingBox!.height}%`,
+                    }}
+                  >
+                    <div className="absolute -top-5 left-0 px-1.5 py-0.5 bg-status-critical text-background text-2xs font-medium rounded whitespace-nowrap">
+                      🎯 {result.objectLabel} • {result.confidence}%
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Camera Info Overlay */}
@@ -235,9 +267,32 @@ export default function VLMMonitoring() {
             </div>
           </div>
 
-          {/* VLM Analysis Panel */}
+          {/* Right Panel with Tabs */}
           <div className="overflow-y-auto">
-            <VLMPanel cameraId={selectedCamera} />
+            <Tabs value={rightTab} onValueChange={(v) => setRightTab(v as any)} className="h-full flex flex-col">
+              <TabsList className="grid grid-cols-2 mb-4">
+                <TabsTrigger value="analysis" className="flex items-center gap-2 text-xs">
+                  <Brain className="w-3.5 h-3.5" />
+                  VLM Analysis
+                </TabsTrigger>
+                <TabsTrigger value="search" className="flex items-center gap-2 text-xs">
+                  <Search className="w-3.5 h-3.5" />
+                  Object Search
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="analysis" className="flex-1 mt-0">
+                <VLMPanel cameraId={selectedCamera} />
+              </TabsContent>
+
+              <TabsContent value="search" className="flex-1 mt-0">
+                <PromptSearchPanel
+                  onAnalyze={handlePromptAnalyze}
+                  isAnalyzing={isAnalyzing}
+                  searchResults={latestAnalysis?.objectSearchResults}
+                />
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </div>

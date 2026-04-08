@@ -22,7 +22,6 @@ export function useVLMAnalysis() {
       }
 
       if (data.error) {
-        // Handle specific error cases
         if (data.error.includes("Rate limit")) {
           toast.error("Rate limit exceeded. Please wait before analyzing again.");
         } else if (data.error.includes("credits")) {
@@ -36,7 +35,6 @@ export function useVLMAnalysis() {
       const assessment = data as ThreatAssessment;
       setLatestAnalysis(assessment);
 
-      // Show toast based on risk level
       if (assessment.riskLevel === "critical") {
         toast.error(`Critical threat detected on ${assessment.cameraId}!`, {
           description: assessment.riskReasoning,
@@ -47,6 +45,16 @@ export function useVLMAnalysis() {
           description: assessment.riskReasoning,
           duration: 7000,
         });
+      }
+
+      // Notify about found objects of interest
+      if (assessment.objectSearchResults?.length) {
+        const found = assessment.objectSearchResults.filter(r => r.found);
+        if (found.length > 0) {
+          toast.warning(`Objects of interest found: ${found.map(r => r.objectLabel).join(", ")}`, {
+            duration: 8000,
+          });
+        }
       }
 
       return assessment;
