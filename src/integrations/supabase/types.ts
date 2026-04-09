@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      cameras: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          rtsp_url: string
+          status: string
+          updated_at: string
+          x_position: number
+          y_position: number
+          zone_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          rtsp_url: string
+          status?: string
+          updated_at?: string
+          x_position?: number
+          y_position?: number
+          zone_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          rtsp_url?: string
+          status?: string
+          updated_at?: string
+          x_position?: number
+          y_position?: number
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cameras_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           created_at: string
@@ -92,6 +136,42 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      zones: {
+        Row: {
+          color: string
+          created_at: string
+          height: number
+          id: string
+          name: string
+          updated_at: string
+          width: number
+          x_position: number
+          y_position: number
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          height?: number
+          id?: string
+          name: string
+          updated_at?: string
+          width?: number
+          x_position?: number
+          y_position?: number
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          height?: number
+          id?: string
+          name?: string
+          updated_at?: string
+          width?: number
+          x_position?: number
+          y_position?: number
         }
         Relationships: []
       }
